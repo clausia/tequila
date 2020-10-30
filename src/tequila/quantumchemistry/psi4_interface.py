@@ -306,7 +306,7 @@ class QuantumChemistryPsi4(QuantumChemistryBase):
         molecule.save()
         return molecule
 
-    def compute_one_body_integrals(self, ref_wfn=None):
+    def compute_one_body_integrals(self, ref_wfn=None, h=None):
         if ref_wfn is None:
             self.compute_energy(method="hf")
             ref_wfn = self.logs['hf'].wfn
@@ -315,7 +315,12 @@ class QuantumChemistryPsi4(QuantumChemistryBase):
         else:
             wfn = ref_wfn
         Ca = numpy.asarray(wfn.Ca())
-        h = wfn.H()
+        if h is None:
+            h = wfn.H()
+        elif hasattr(h, "lower") and "dipole" in h.lower():
+            mints = psi4.core.MintsHelper(wfn.basisset())
+            h = mints.ao_dipole()[int(h.lower().split("_")[1])].np
+
         h = numpy.einsum("xy, yi -> xi", h, Ca, optimize='greedy')
         h = numpy.einsum("xj, xi -> ji", Ca, h, optimize='greedy')
         return h
