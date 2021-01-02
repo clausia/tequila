@@ -54,7 +54,9 @@ class Compiler:
                  controlled_rotation=False,
                  swap=False,
                  cc_max=False,
-                 gradient_mode=False
+                 gradient_mode=False,
+                 ry_gate=False,
+                 y_gate=False
                  ):
 
         """
@@ -111,6 +113,8 @@ class Compiler:
         self.swap = swap
         self.cc_max = cc_max
         self.gradient_mode = gradient_mode
+        self.ry_gate = ry_gate
+        self.y_gate = y_gate
 
     def __call__(self, objective: typing.Union[Objective, QCircuit, ExpectationValueImpl], variables=None, *args,
                  **kwargs):
@@ -280,6 +284,10 @@ class Compiler:
                 cg = compile_power_gate(gate=cg)
             if self.phase:
                 cg = compile_phase(gate=cg)
+            if self.ry_gate:
+                cg = compile_ry(gate=cg)
+            if self.y_gate:
+                cg = compile_y(gate=cg)
             if controlled:
                 if self.cc_max:
                     cg = compile_to_cc(gate=cg)
@@ -1297,3 +1305,57 @@ def compile_trotterized_gate(gate, compile_exponential_pauli: bool = False):
         return compile_exponential_pauli_gate(result)
     else:
         return result
+
+
+@compiler
+def compile_ry(gate: RotationGateImpl) -> QCircuit:
+    """
+    Compile Ry gates into Rx and Rz.
+    Parameters
+    ----------
+    gate:
+        the gate.
+
+    Returns
+    -------
+    QCircuit, the result of compilation.
+    """
+    if gate.name.lower() == "ry":
+        if len(gate.target) != 1:
+            raise TequilaCompilerException("Ry gates needs one target")
+
+        c = []
+        if gate.control is not None:
+            c = gate.control
+        return Rz(target=gate.target[0], control=None, angle=-numpy.pi / 2) \
+               + Rx(target=gate.target[0], control=c, angle=gate.parameter) \
+               + Rz(target=gate.target[0], control=None, angle=numpy.pi / 2)
+
+    else:
+        return QCircuit.wrap_gate(gate)
+
+
+@compiler
+def compile_y(gate: RotationGateImpl) -> QCircuit:
+    """
+    Compile Y gates into X and Z.
+    Parameters
+    ----------
+    gate:
+        the gate.
+
+    Returns
+    -------
+    QCircuit, the result of compilation.
+    """
+    if gate.name.lower() == "y":
+        c = []
+        if gate.control is not None:
+            c = gate.control
+        return Rz(target=gate.target[0], control=None, angle=-numpy.pi / 2) \
+               + Rx(target=gate.target[0], control=c, angle=numpy.pi) \
+               + Rz(target=gate.target[0], control=None, angle=numpy.pi / 2)
+
+    else:
+        return QCircuit.wrap_gate(gate)
+

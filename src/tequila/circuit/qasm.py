@@ -1,15 +1,18 @@
 """
 Export QCircuits as qasm code
 
+OPENQASM version 2.0 specification from:
 A. W. Cross, L. S. Bishop, J. A. Smolin, and J. M. Gambetta, e-print arXiv:1707.03429v2 [quant-ph] (2017).
 https://arxiv.org/pdf/1707.03429v2.pdf
 """
 from tequila import TequilaException
 from tequila.circuit import QCircuit
 from tequila.circuit.compiler import Compiler
+from tequila.circuit.gates import *
+import re
 
 
-def export_open_qasm(circuit: QCircuit, variables=None, version="2.0", filename=None) -> str:
+def export_open_qasm(circuit: QCircuit, variables=None, version: str = "2.0", filename: str = None) -> str:
     """
     Allow export to different versions of OpenQASM
 
@@ -37,7 +40,7 @@ def export_open_qasm(circuit: QCircuit, variables=None, version="2.0", filename=
     return result
 
 
-def import_open_qasm(qasm_code: str, variables=None, version="2.0") -> QCircuit:
+def import_open_qasm(qasm_code: str, variables=None, version: str = "2.0", rigorous: bool = True) -> QCircuit:
     """
     Allow import from different versions of OpenQASM
 
@@ -45,17 +48,57 @@ def import_open_qasm(qasm_code: str, variables=None, version="2.0") -> QCircuit:
         qasm_code: string with the OpenQASM code
         variables: optional dictionary with values for variables
         version: of the OpenQASM specification, optional
+        rigorous: indicates whether the QASM code should be read rigorously
 
     Returns:
         QCircuit: equivalent to the OpenQASM code received
     """
 
-    print("Import to Open QASM", qasm_code)
-    # TODO: Implement import from open qasm
-    return QCircuit()
+    # print("Import from Open QASM", qasm_code)
+
+    lines = qasm_code.splitlines()
+    oq_code = []
+    # ignore comments
+    for line in lines:
+        if line.find("//") != -1:
+            clean_line = line[0:line.find("//")].strip()
+        else:
+            clean_line = line.strip()
+        if clean_line:
+            oq_code.append(clean_line)
+
+    if oq_code[0].startswith("OPENQASM"):
+        oq_code.pop(0)
+    elif rigorous:
+        raise TequilaException("File must start with the 'OPENQASM' directive")
+
+    if oq_code[0].startswith('include "qelib1.inc";'):
+        oq_code.pop(0)
+    elif rigorous:
+        raise TequilaException("File must import standard library")
+
+    code = "\n".join(oq_code)
+    # separate the custom command definitions from the normal commands
+    while True:
+        i = code.find("gate ")
+        if i == -1:
+            break
+        j = code.find("}", i)
+        parse_custom_gate(code[i:j + 1])
+        code = code[:i] + code[j + 1:]
+
+    # parse regular commands
+    commands = [s.strip() for s in code.split(";") if s.strip()]
+    circuit = QCircuit()
+    for c in commands:
+        res = parse_command(c)
+        if res is not None:
+            circuit += res
+
+    return circuit
 
 
-def import_open_qasm_from_file(filename: str, variables=None, version="2.0") -> QCircuit:
+def import_open_qasm_from_file(filename: str, variables=None, version: str = " 2.0", rigorous: bool = True) -> QCircuit:
     """
     Allow import from different versions of OpenQASM from a file
 
@@ -63,6 +106,7 @@ def import_open_qasm_from_file(filename: str, variables=None, version="2.0") -> 
         filename: string with the file name with the OpenQASM code
         variables: optional dictionary with values for variables
         version: of the OpenQASM specification, optional
+        rigorous: indicates whether the QASM code should be read rigorously
 
     Returns:
         QCircuit: equivalent to the OpenQASM code received
@@ -72,7 +116,7 @@ def import_open_qasm_from_file(filename: str, variables=None, version="2.0") -> 
         qasm_code = file.read()
         file.close()
 
-    return import_open_qasm(qasm_code, variables=variables, version=version)
+    return import_open_qasm(qasm_code, variables=variables, version=version, rigorous=rigorous)
 
 
 def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
@@ -96,7 +140,7 @@ def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
                         multicontrol=False,
                         trotterized=True,
                         generalized_rotation=True,
-                        exponential_pauli=False,
+                        exponential_pauli=True,
                         controlled_exponential_pauli=True,
                         hadamard_power=True,
                         controlled_power=True,
@@ -105,12 +149,14 @@ def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
                         controlled_phase=True,
                         phase=True,
                         phase_to_z=True,
-                        controlled_rotation=True,
+                        controlled_rotation=False,
                         swap=True,
                         cc_max=True,
-                        gradient_mode=True)
+                        gradient_mode=False,
+                        ry_gate=True,
+                        y_gate=True)
 
-    compiled = compiler(circuit, variables=variables)
+    compiled = compiler(circuit, variables=None)
 
     result = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\n"
 
@@ -138,9 +184,7 @@ def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
 
             for t in g.target:
                 result += name_and_params(g, variables)
-
                 result += qubits_names[t]
-
                 result += ";\n"
 
     return result
@@ -173,20 +217,71 @@ def name_and_params(g, variables):
     return res
 
 
-compiler_arguments_qasm = {
-    "trotterized": True,
-    "swap": True,
-    "multitarget": True,
-    "controlled_rotation": True,
-    "gaussian": True,
-    "exponential_pauli": True,
-    "controlled_exponential_pauli": True,
-    "phase": True,
-    "power": True,
-    "hadamard_power": True,
-    "controlled_power": True,
-    "controlled_phase": True,
-    "toffoli": True,
-    "phase_to_z": True,
-    "cc_max": True
-}
+def parse_custom_gate(custom: str) -> None:
+    """
+    Parse custom gates code
+
+    Args:
+        custom: code with custom gates
+    """
+    len(custom)
+
+
+def parse_command(command: str) -> QCircuit:
+    """
+    Parse qasm code
+
+    Args:
+        command: open qasm code to be parsed
+    """
+
+    name, rest = command.split(" ", 1)
+    if name in ("barrier", "creg", "measure", "id"):
+        return None
+    if name in ("opaque", "if"):
+        raise TequilaException("Unsupported operation {}".format(command))
+    args = [s.strip() for s in rest.split(",") if s.strip()]
+
+    # if name == "qreg":
+    #     regname, sizep = args[0].split("[", 1)
+    #     size = int(sizep[:-1])
+    #     registers[regname] = (qubit_count, size)
+    #     qubit_count += size
+    #     return
+
+    if name == "x":
+        return X(target=int(re.search(r"\[([0-9]+)\]", args[0]).group(1)))
+    if name == "y":
+        return Y(target=int(re.search(r"\[([0-9]+)\]", args[0]).group(1)))
+    if name == "z":
+        return Z(target=int(re.search(r"\[([0-9]+)\]", args[0]).group(1)))
+
+#
+# circuit1 = CY(target=1, control=0)
+# circuit1 = Ry(target=1, angle=3.14)
+# # circuit1 = tequila.gates.S()
+#
+# compiler = Compiler(multitarget=True,
+#                     multicontrol=False,
+#                     trotterized=True,
+#                     generalized_rotation=True,
+#                     exponential_pauli=True,
+#                     controlled_exponential_pauli=True,
+#                     hadamard_power=True,
+#                     controlled_power=True,
+#                     power=True,
+#                     toffoli=True,
+#                     controlled_phase=True,
+#                     phase=True,
+#                     phase_to_z=True,
+#                     controlled_rotation=True,
+#                     swap=True,
+#                     cc_max=True,
+#                     gradient_mode=False,
+#                     ry_gate=True,
+#                     y_gate=True,
+#                     cy_gate=True)
+#
+# compiled = compiler(circuit1, variables=None)
+# import tequila
+# tequila.draw(circuit1, backend='qiskit')
