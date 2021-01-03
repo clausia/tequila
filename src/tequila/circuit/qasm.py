@@ -56,7 +56,7 @@ def import_open_qasm(qasm_code: str, variables=None, version: str = "2.0", rigor
 
     # print("Import from Open QASM", qasm_code)
 
-    lines = qasm_code.splitlines()
+    lines = qasm_code.splitlines
     oq_code = []
     # ignore comments
     for line in lines:
@@ -170,22 +170,22 @@ def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
 
     for g in compiled.gates:
 
-        if g.is_controlled() or g.name.lower() == "swap":
+        control_str = ''
+        if g.is_controlled():
 
-            result += name_and_params(g, variables)
+            if len(gate.control) > 2:
+                raise TequilaException(
+                    "Multi-controls beyond 2 not yet supported for OpenQASM 2.0. Gate was:\n{}".format(gate))
 
-            params = list(map(lambda c: qubits_names[c], g.control))
-            params += (list(map(lambda t: qubits_names[t], g.target)))
-            result += ','.join(params)
+            controls = list(map(lambda c: qubits_names[c], g.control))
+            control_str = ','.join(controls) + ','
 
+        gate_name = name_and_params(g, variables)
+        for t in g.target:
+            result += gate_name
+            result += control_str
+            result += qubits_names[t]
             result += ";\n"
-
-        else:
-
-            for t in g.target:
-                result += name_and_params(g, variables)
-                result += qubits_names[t]
-                result += ";\n"
 
     return result
 
@@ -204,10 +204,10 @@ def name_and_params(g, variables):
 
     res = ""
 
-    if len(g.control) > 0:
-        res += "c" + g.name.lower()
-    else:
-        res += g.name.lower()
+    for c in range(len(g.control)):
+        res += "c"
+
+    res += g.name.lower()
 
     if hasattr(g, "parameter") and g.parameter is not None:
         res += "(" + str(g.parameter(variables)) + ")"
