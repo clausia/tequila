@@ -1326,11 +1326,8 @@ def compile_ry(gate: RotationGateImpl) -> QCircuit:
     """
     if gate.name.lower() == "ry":
 
-        c = []
-        if gate.control is not None:
-            c = gate.control
         return Rz(target=gate.target, control=None, angle=-numpy.pi / 2) \
-               + Rx(target=gate.target, control=c, angle=gate.parameter) \
+               + Rx(target=gate.target, control=gate.control, angle=gate.parameter) \
                + Rz(target=gate.target, control=None, angle=numpy.pi / 2)
 
     else:
@@ -1351,12 +1348,10 @@ def compile_y(gate: RotationGateImpl) -> QCircuit:
     QCircuit, the result of compilation.
     """
     if gate.name.lower() == "y":
-        c = []
-        if gate.control is not None:
-            c = gate.control
-        return Rz(target=gate.target[0], control=None, angle=-numpy.pi / 2) \
-               + Rx(target=gate.target[0], control=c, angle=numpy.pi) \
-               + Rz(target=gate.target[0], control=None, angle=numpy.pi / 2)
+
+        return Rz(target=gate.target, control=None, angle=-numpy.pi / 2) \
+               + Rx(target=gate.target, control=gate.control, angle=numpy.pi) \
+               + Rz(target=gate.target, control=None, angle=numpy.pi / 2)
 
     else:
         return QCircuit.wrap_gate(gate)
