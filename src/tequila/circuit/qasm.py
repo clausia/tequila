@@ -173,9 +173,9 @@ def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
         control_str = ''
         if g.is_controlled():
 
-            if len(gate.control) > 2:
+            if len(g.control) > 2:
                 raise TequilaException(
-                    "Multi-controls beyond 2 not yet supported for OpenQASM 2.0. Gate was:\n{}".format(gate))
+                    "Multi-controls beyond 2 not yet supported for OpenQASM 2.0. Gate was:\n{}".format(g))
 
             controls = list(map(lambda c: qubits_names[c], g.control))
             control_str = ','.join(controls) + ','

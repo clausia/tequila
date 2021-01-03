@@ -95,6 +95,10 @@ class Compiler:
             whether or not to break down swap gates into CNOT gates.
         cc_max:
             whether or not to break down all controlled gates with 2 or more controls.
+        ry_gate:
+            whether or not to break down all rotational y gates
+        y_gate:
+            whether or not to break down all y gates
         """
         self.multitarget = multitarget
         self.multicontrol = multicontrol
@@ -1321,15 +1325,13 @@ def compile_ry(gate: RotationGateImpl) -> QCircuit:
     QCircuit, the result of compilation.
     """
     if gate.name.lower() == "ry":
-        if len(gate.target) != 1:
-            raise TequilaCompilerException("Ry gates needs one target")
 
         c = []
         if gate.control is not None:
             c = gate.control
-        return Rz(target=gate.target[0], control=None, angle=-numpy.pi / 2) \
-               + Rx(target=gate.target[0], control=c, angle=gate.parameter) \
-               + Rz(target=gate.target[0], control=None, angle=numpy.pi / 2)
+        return Rz(target=gate.target, control=None, angle=-numpy.pi / 2) \
+               + Rx(target=gate.target, control=c, angle=gate.parameter) \
+               + Rz(target=gate.target, control=None, angle=numpy.pi / 2)
 
     else:
         return QCircuit.wrap_gate(gate)
