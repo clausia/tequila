@@ -1312,7 +1312,7 @@ def compile_trotterized_gate(gate, compile_exponential_pauli: bool = False):
 
 
 @compiler
-def compile_ry(gate: RotationGateImpl, controlled_rotation: bool) -> QCircuit:
+def compile_ry(gate: RotationGateImpl, controlled_rotation: bool = False) -> QCircuit:
     """
     Compile Ry gates into Rx and Rz.
     Parameters
