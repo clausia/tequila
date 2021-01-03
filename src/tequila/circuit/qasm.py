@@ -12,7 +12,7 @@ from tequila.circuit.gates import *
 import re
 
 
-def export_open_qasm(circuit: QCircuit, variables=None, version: str = "2.0", filename: str = None) -> str:
+def export_open_qasm(circuit: QCircuit, variables=None, version: str = "2.0", filename: str = None, zx_calculus: bool = False) -> str:
     """
     Allow export to different versions of OpenQASM
 
@@ -21,13 +21,14 @@ def export_open_qasm(circuit: QCircuit, variables=None, version: str = "2.0", fi
         variables: optional dictionary with values for variables
         version: of the OpenQASM specification, optional
         filename: optional file name to save the generated OpenQASM code
+        zx_calculus: indicate if y-gates must be transformed to xz equivalents
 
     Returns:
         str: OpenQASM string
     """
 
     if version == "2.0":
-        result = convert_to_open_qasm_2(circuit=circuit, variables=variables)
+        result = convert_to_open_qasm_2(circuit=circuit, variables=variables, zx_calculus=zx_calculus)
     else:
         return "Unsupported OpenQASM version : " + version
     # TODO: export to version 3
@@ -119,13 +120,14 @@ def import_open_qasm_from_file(filename: str, variables=None, version: str = " 2
     return import_open_qasm(qasm_code, variables=variables, version=version, rigorous=rigorous)
 
 
-def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
+def convert_to_open_qasm_2(circuit: QCircuit, variables=None, zx_calculus: bool = False) -> str:
     """
     Allow export to OpenQASM version 2.0
 
     Args:
         circuit: to be exported to OpenQASM
         variables: optional dictionary with values for variables
+        zx_calculus: indicate if y-gates must be transformed to xz equivalents
 
     Returns:
         str: OpenQASM string
@@ -149,12 +151,12 @@ def convert_to_open_qasm_2(circuit: QCircuit, variables=None) -> str:
                         controlled_phase=True,
                         phase=True,
                         phase_to_z=True,
-                        controlled_rotation=False,
+                        controlled_rotation=True,
                         swap=True,
                         cc_max=True,
                         gradient_mode=False,
-                        ry_gate=True,
-                        y_gate=True)
+                        ry_gate=zx_calculus,
+                        y_gate=zx_calculus)
 
     compiled = compiler(circuit, variables=None)
 
@@ -255,33 +257,3 @@ def parse_command(command: str) -> QCircuit:
         return Y(target=int(re.search(r"\[([0-9]+)\]", args[0]).group(1)))
     if name == "z":
         return Z(target=int(re.search(r"\[([0-9]+)\]", args[0]).group(1)))
-
-#
-# circuit1 = CY(target=1, control=0)
-# circuit1 = Ry(target=1, angle=3.14)
-# # circuit1 = tequila.gates.S()
-#
-# compiler = Compiler(multitarget=True,
-#                     multicontrol=False,
-#                     trotterized=True,
-#                     generalized_rotation=True,
-#                     exponential_pauli=True,
-#                     controlled_exponential_pauli=True,
-#                     hadamard_power=True,
-#                     controlled_power=True,
-#                     power=True,
-#                     toffoli=True,
-#                     controlled_phase=True,
-#                     phase=True,
-#                     phase_to_z=True,
-#                     controlled_rotation=True,
-#                     swap=True,
-#                     cc_max=True,
-#                     gradient_mode=False,
-#                     ry_gate=True,
-#                     y_gate=True,
-#                     cy_gate=True)
-#
-# compiled = compiler(circuit1, variables=None)
-# import tequila
-# tequila.draw(circuit1, backend='qiskit')

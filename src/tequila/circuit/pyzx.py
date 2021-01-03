@@ -28,7 +28,7 @@ def convert_to_pyzx(circuit: QCircuit, variables=None) -> pyzx.circuit.Circuit:
         pyzx.circuit.Circuit: pyzx circuit
     """
     if HAS_PYZX:
-        return pyzx.circuit.Circuit.from_qasm(export_open_qasm(circuit=circuit, variables=variables, version="2.0"))
+        return pyzx.circuit.Circuit.from_qasm(export_open_qasm(circuit=circuit, variables=variables, version="2.0", zx_calculus=True))
     else:
         raise TequilaException("Pyzx package not installed.")
 

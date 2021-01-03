@@ -289,7 +289,7 @@ class Compiler:
             if self.phase:
                 cg = compile_phase(gate=cg)
             if self.ry_gate:
-                cg = compile_ry(gate=cg)
+                cg = compile_ry(gate=cg, controlled_rotation=self.controlled_rotation)
             if self.y_gate:
                 cg = compile_y(gate=cg)
             if controlled:
@@ -1312,13 +1312,15 @@ def compile_trotterized_gate(gate, compile_exponential_pauli: bool = False):
 
 
 @compiler
-def compile_ry(gate: RotationGateImpl) -> QCircuit:
+def compile_ry(gate: RotationGateImpl, controlled_rotation: bool) -> QCircuit:
     """
     Compile Ry gates into Rx and Rz.
     Parameters
     ----------
     gate:
         the gate.
+    controlled_rotation:
+        to determine if the gate break down need to be applied here
 
     Returns
     -------
@@ -1326,12 +1328,13 @@ def compile_ry(gate: RotationGateImpl) -> QCircuit:
     """
     if gate.name.lower() == "ry":
 
-        return Rz(target=gate.target, control=None, angle=-numpy.pi / 2) \
-               + Rx(target=gate.target, control=gate.control, angle=gate.parameter) \
-               + Rz(target=gate.target, control=None, angle=numpy.pi / 2)
+        if not (gate.is_controlled() and controlled_rotation):
 
-    else:
-        return QCircuit.wrap_gate(gate)
+            return Rz(target=gate.target, control=None, angle=-numpy.pi / 2) \
+                   + Rx(target=gate.target, control=gate.control, angle=gate.parameter) \
+                   + Rz(target=gate.target, control=None, angle=numpy.pi / 2)
+
+    return QCircuit.wrap_gate(gate)
 
 
 @compiler
